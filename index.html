@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bowling Quiz</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3efe8;--card:#fff;--ink:#1c2b4a;--sub:#566178;--lane:#d9a45f;--lane2:#c48d47;--gutter:#3a4259;--red:#c8372d;--ok:#2f7d4f;--line:#d8d2c6;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a2a;--card:#1e2740;--ink:#f1eee7;--sub:#aab3c8;--line:#34405f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141a2a;--card:#1e2740;--ink:#f1eee7;--sub:#aab3c8;--line:#34405f;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 "Trebuchet MS","Segoe UI",Verdana,sans-serif}
+main{max-width:620px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:26px;margin:0 0 4px}
+.sub{color:var(--sub);margin:0 0 16px}
+.frames{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-bottom:14px}
+.f{background:var(--card);border:2px solid var(--line);border-radius:6px;text-align:center;padding:4px 0;font-size:14px;min-height:46px}
+.f b{display:block;font-size:12px;color:var(--sub)}
+.f.now{border-color:var(--red)}
+.f span{font-size:18px;font-weight:700}
+.lane{position:relative;height:250px;border-radius:10px;overflow:hidden;background:linear-gradient(90deg,var(--gutter) 0 9%,var(--lane) 9% 91%,var(--gutter) 91%);border:3px solid var(--gutter)}
+.lane::before{content:"";position:absolute;inset:0 9%;background:repeating-linear-gradient(90deg,transparent 0 24px,rgba(0,0,0,.06) 24px 26px)}
+.pins{position:absolute;top:14px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.row{display:flex;gap:14px}
+.pin{width:20px;height:34px;background:#fff;border-radius:10px 10px 8px 8px;border:2px solid #ddd;position:relative;transition:transform .7s ease,opacity .7s ease}
+.pin::after{content:"";position:absolute;left:0;right:0;top:11px;height:5px;background:var(--red)}
+.pin.down{transform:translateY(-30px) rotate(80deg);opacity:0}
+.ball{position:absolute;bottom:12px;left:calc(50% - 20px);width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#4a69b8,#1c2b4a);transition:transform .9s ease-in}
+.ball.go{transform:translateY(-170px)}
+.ball.gutter{transform:translate(-118px,-170px)}
+.say{min-height:34px;margin:12px 0 4px;font-weight:700;font-size:20px}
+.card{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:16px}
+.q{font-size:21px;margin:0 0 12px}
+.opts{display:grid;gap:10px}
+button{font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:8px;padding:12px 14px;text-align:left;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--ink)}
+button:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+button:disabled{cursor:default}
+.opts button.right{border-color:var(--ok);background:rgba(47,125,79,.15)}
+.opts button.wrong{border-color:var(--red);background:rgba(200,55,45,.12)}
+.go-btn{margin-top:12px;background:var(--ink);color:var(--bg);text-align:center;width:100%;font-weight:700}
+.hide{display:none}
+@media (prefers-reduced-motion:reduce){.pin,.ball{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Bowling Quiz 🎳</h1>
+<p class="sub">Answer the question. Right answer = strike! Wrong answer = you get one more try.</p>
+<div class="frames" id="frames"></div>
+<div class="lane"><div class="pins" id="pins"></div><div class="ball" id="ball"></div></div>
+<div class="say" id="say" aria-live="polite"></div>
+<div class="card" id="card">
+<p class="q" id="q"></p>
+<div class="opts" id="opts"></div>
+<button class="go-btn hide" id="next"></button>
+</div>
+</main>
+<script>
+var Q=[
+["You roll the ___ down the lane.",["ball","pins","shoes"],0,"The ball rolls. The pins stand."],
+["There are ten ___ at the end of the lane.",["balls","pins","lanes"],1,"Ten pins stand at the end."],
+["A strike means you knock down ___ pins with the first ball.",["five","all ten","two"],1,"Strike = all ten pins, first ball."],
+["He ___ bowling every Friday.",["go","going","goes"],2,"He / she / it + goes."],
+["We ___ bowling on Saturdays.",["play","plays","playing"],0,"We + play (no -s)."],
+["Yesterday I ___ a strike!",["get","got","getting"],1,"Past of get = got."],
+["Last week they ___ bowling with friends.",["go","goes","went"],2,"Past of go = went."],
+["___ you like bowling?",["Does","Do","Is"],1,"Do + you / I / we / they."],
+["The ball rolls ___ the lane.",["down","at","of"],0,"We say: roll down the lane."],
+["If the ball goes into the gutter, you score ___.",["ten","zero","a strike"],1,"Gutter = zero pins."]
+];
+var i=0,tries=0,total=0,res=[],busy=false;
+var $=function(id){return document.getElementById(id)};
+var HIT=[0,3,6];
+function pins(){var h="",n=0,rows=[4,3,2,1];for(var r=0;r<4;r++){h+='<div class="row">';for(var k=0;k<rows[r];k++){h+='<div class="pin" id="p'+(n++)+'"></div>'}h+="</div>"}$("pins").innerHTML=h}
+function frames(){var h="";for(var k=0;k<10;k++){h+='<div class="f'+(k===i?" now":"")+'"><b>'+(k+1)+'</b><span>'+(res[k]||"&nbsp;")+'</span></div>'}$("frames").innerHTML=h}
+function show(){var q=Q[i];tries=0;pins();frames();$("say").textContent="Frame "+(i+1)+" of 10";$("q").textContent=q[0];
+var o=$("opts");o.innerHTML="";q[1].forEach(function(t,k){var b=document.createElement("button");b.textContent=t;b.onclick=function(){pick(k,b)};o.appendChild(b)});
+$("next").classList.add("hide");$("ball").className="ball"}
+function standing(){return Array.prototype.filter.call(document.querySelectorAll(".pin"),function(p){return !p.classList.contains("down")})}
+function roll(good){var b=$("ball");b.className="ball";void b.offsetWidth;b.className="ball "+(good?"go":"gutter")}
+function lock(){document.querySelectorAll("#opts button").forEach(function(b){b.disabled=true})}
+function pick(k,b){if(busy)return;var q=Q[i];
+if(k===q[2]){busy=true;lock();b.classList.add("right");var first=tries===0;roll(true);
+setTimeout(function(){standing().forEach(function(p){p.classList.add("down")});
+var left=standing().length;total+=first?10:7;res[i]=first?"X":"/";
+$("say").textContent=first?"STRIKE! 🎳 All ten pins!":"Spare! Well done.";finish();busy=false},800)}
+else{b.classList.add("wrong");b.disabled=true;
+if(tries===0){tries=1;roll(true);setTimeout(function(){HIT.forEach(function(n){$("p"+n).classList.add("down")});$("say").textContent="Not this one. 3 pins fell. Try again!"},800)}
+else{busy=true;lock();roll(false);setTimeout(function(){res[i]="–";$("say").textContent="Gutter ball. The answer: "+q[1][q[2]];document.querySelectorAll("#opts button")[q[2]].classList.add("right");$("say").textContent+=". "+q[3];finish();busy=false},800)}}}
+function finish(){frames();var n=$("next");n.textContent=i<9?"Next frame":"See my score";n.classList.remove("hide");n.focus()}
+$("next").onclick=function(){if(i<9){i++;show()}else end()};
+function end(){var s=total;var msg=s>=90?"Amazing game! You are a bowling champion!":s>=70?"Great game! Almost perfect.":"Good game! Play again and beat your score.";
+$("say").textContent="Game over";$("card").innerHTML='<p class="q">Your score: '+s+' / 100</p><p>'+msg+'</p><button class="go-btn" id="again">Play again</button>';
+$("again").onclick=function(){location.reload()}}
+show();
+</script>
+</body>
+</html>
